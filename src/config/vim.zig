@@ -3,7 +3,18 @@ const Config = @import("Config.zig");
 
 /// This is the associated Vim file as named by the variable.
 pub const syntax = comptimeGenSyntax();
-pub const ftdetect = "au BufRead,BufNewFile */ghostty/config set ft=ghostty\n";
+pub const ftdetect =
+    \\" Vim filetype plugin file
+    \\" Language: Ghostty config file
+    \\" Maintainer: Ghostty <https://github.com/ghostty-org/ghostty>
+    \\"
+    \\" THIS FILE IS AUTO-GENERATED
+    \\
+    \\au BufRead,BufNewFile */ghostty/config set ft=ghostty
+    \\au BufRead,BufNewFile */ghostty/themes/* set ft=ghostty
+    \\au BufRead,BufNewFile */ghostty/testing set ft=ghostty
+    \\autocmd FileType ghostty compiler ghostty
+;
 pub const ftplugin =
     \\" Vim filetype plugin file
     \\" Language: Ghostty config file
@@ -23,6 +34,28 @@ pub const ftplugin =
     \\setlocal omnifunc=syntaxcomplete#Complete
     \\
     \\let b:undo_ftplugin = 'setl cms< isk< ofu<'
+    \\
+    \\compiler ghostty
+    \\colorscheme sorbet
+    \\
+    \\
+;
+pub const compiler =
+    \\" Vim compiler plugin file
+    \\" Language: Ghostty config file
+    \\" Maintainer: Ghostty <https://github.com/ghostty-org/ghostty>
+    \\"
+    \\" THIS FILE IS AUTO-GENERATED
+    \\
+    \\if exists('current_compiler')
+    \\  finish
+    \\endif
+    \\
+    \\let current_compiler = 'ghostty'
+    \\CompilerSet makeprg=ghostty\ +validate-config\ --config-file='%:p'
+    \\" ex: /home/anund/det.nix:11:}: unknown field
+    \\CompilerSet errorformat=%f:%l:%m
+    \\
     \\
 ;
 
