@@ -19,6 +19,7 @@ pub const Diagnostic = struct {
     pub fn write(self: *const Diagnostic, writer: anytype) !void {
         switch (self.location) {
             .none => {},
+            .replay => {},
             .cli => |index| try writer.print("cli:{}:", .{index}),
             .file => |file| try writer.print(
                 "{s}:{}:",
@@ -53,6 +54,7 @@ pub const Location = union(enum) {
         path: []const u8,
         line: usize,
     },
+    replay,
 
     pub const Key = @typeInfo(Location).Union.tag_type.?;
 
@@ -73,6 +75,7 @@ pub const Location = union(enum) {
     pub fn clone(self: *const Location, alloc: Allocator) Allocator.Error!Location {
         return switch (self.*) {
             .none,
+            .replay,
             .cli,
             => self.*,
 
@@ -153,6 +156,7 @@ pub const DiagnosticList = struct {
         alloc: Allocator,
         diag: Diagnostic,
     ) Allocator.Error!void {
+        if (diag.location == .replay) return;
         try self.list.append(alloc, diag);
         errdefer _ = self.list.pop();
 

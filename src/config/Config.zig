@@ -3262,6 +3262,7 @@ fn loadTheme(self: *Config, theme: Theme) !void {
     const alloc_gpa = self._arena.?.child_allocator;
     var new_config = try self.cloneEmpty(alloc_gpa);
     errdefer new_config.deinit();
+    new_config._diagnostics = try self._diagnostics.clone(alloc_gpa);
 
     // Load our theme
     var buf_reader = std.io.bufferedReader(file.reader());
@@ -3916,6 +3917,11 @@ const Replay = struct {
                     .@"-e" => return "-e",
                 }
             }
+        }
+
+        /// Returns a location for a diagnostic message.
+        pub fn location(_: *const Self, _: Allocator) Allocator.Error!?cli.Location {
+            return cli.Location.replay;
         }
     };
 
