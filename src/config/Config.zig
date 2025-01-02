@@ -3262,7 +3262,9 @@ fn loadTheme(self: *Config, theme: Theme) !void {
     const alloc_gpa = self._arena.?.child_allocator;
     var new_config = try self.cloneEmpty(alloc_gpa);
     errdefer new_config.deinit();
-    new_config._diagnostics = try self._diagnostics.clone(alloc_gpa);
+
+    const alloc_arena = new_config._arena.?.allocator();
+    new_config._diagnostics = try self._diagnostics.clone(alloc_arena);
 
     // Load our theme
     var buf_reader = std.io.bufferedReader(file.reader());
@@ -3283,7 +3285,6 @@ fn loadTheme(self: *Config, theme: Theme) !void {
 
             // Change our arg to be conditional on our theme.
             .arg => |v| {
-                const alloc_arena = new_config._arena.?.allocator();
                 const conds = try alloc_arena.alloc(Conditional, 1);
                 conds[0] = .{
                     .key = .theme,
@@ -3297,7 +3298,6 @@ fn loadTheme(self: *Config, theme: Theme) !void {
             },
 
             .conditional_arg => |v| {
-                const alloc_arena = new_config._arena.?.allocator();
                 const conds = try alloc_arena.alloc(Conditional, v.conditions.len + 1);
                 conds[0] = .{
                     .key = .theme,
@@ -6488,6 +6488,50 @@ test "theme loading preserves conditional state" {
     try cfg.finalize();
 
     try testing.expect(cfg._conditional_state.theme == .dark);
+}
+
+test "on disk theme preserves diagnostics" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    // Setup our test theme
+    var td = try internal_os.TempDir.init();
+    defer td.deinit();
+    {
+        var config = try td.dir.createFile("config", .{});
+        defer config.close();
+        try config.writer().writeAll("not a key\n");
+
+        var theme = try td.dir.createFile("theme_simple", .{});
+        defer theme.close();
+        try theme.writer().writeAll("also not a key\n");
+
+        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const theme_path = try td.dir.realpath("theme_simple", &path_buf);
+        try config.writer().writeAll("theme = ");
+        try config.writer().writeAll(theme_path);
+    }
+
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const path = try td.dir.realpath("config", &path_buf);
+    var path_buf2: [std.fs.max_path_bytes]u8 = undefined;
+    const theme_path = try td.dir.realpath("theme_simple", &path_buf2);
+
+    var cfg = try Config.default(alloc);
+    defer cfg.deinit();
+    try cfg.loadFile(alloc, path);
+    try cfg.loadRecursiveFiles(alloc);
+    try cfg.finalize();
+
+    try testing.expectEqualStrings("not a key", cfg._diagnostics.items()[0].key);
+    try testing.expectEqualStrings("unknown field", cfg._diagnostics.items()[0].message);
+    try testing.expectEqualStrings(path, cfg._diagnostics.items()[0].location.file.path);
+    try testing.expectEqual(1, cfg._diagnostics.items()[0].location.file.line);
+
+    try testing.expectEqualStrings("also not a key", cfg._diagnostics.items()[1].key);
+    try testing.expectEqualStrings("unknown field", cfg._diagnostics.items()[1].message);
+    try testing.expectEqualStrings(theme_path, cfg._diagnostics.items()[1].location.file.path);
+    try testing.expectEqual(1, cfg._diagnostics.items()[1].location.file.line);
 }
 
 test "theme priority is lower than config" {
