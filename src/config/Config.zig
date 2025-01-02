@@ -3192,6 +3192,9 @@ pub fn changeConditionalState(
     var new_config = try self.cloneEmpty(alloc_gpa);
     errdefer new_config.deinit();
 
+    const alloc_arena = new_config._arena.?.allocator();
+    new_config._diagnostics = try self._diagnostics.clone(alloc_arena);
+
     // Set our conditional state so the replay below can use it
     new_config._conditional_state = new;
 
@@ -6490,7 +6493,7 @@ test "theme loading preserves conditional state" {
     try testing.expect(cfg._conditional_state.theme == .dark);
 }
 
-test "on disk theme preserves diagnostics" {
+test "theme loading preserves diagnostics" {
     const testing = std.testing;
     const alloc = testing.allocator;
 
