@@ -6537,6 +6537,82 @@ test "theme loading preserves diagnostics" {
     try testing.expectEqual(1, cfg._diagnostics.items()[1].location.file.line);
 }
 
+// test succeeds but maybe shouldn't? see how the state change
+// adds an additional diagnostics entry rather than just having 2
+// like the default light case
+test "conditionalState preserves diagnostics" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    // Setup our test theme
+    var td = try internal_os.TempDir.init();
+    defer td.deinit();
+    {
+        var config = try td.dir.createFile("config", .{});
+        defer config.close();
+        try config.writer().writeAll("not a key\n");
+
+        var light = try td.dir.createFile("light", .{});
+        defer light.close();
+        try light.writer().writeAll("also not a key\n");
+
+        var dark = try td.dir.createFile("dark", .{});
+        defer dark.close();
+        try dark.writer().writeAll("even more not key\n");
+
+        var light_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const light_path = try td.dir.realpath("light", &light_buf);
+        var dark_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const dark_path = try td.dir.realpath("dark", &dark_buf);
+        try config.writer().writeAll("theme = light:");
+        try config.writer().writeAll(light_path);
+        try config.writer().writeAll(",dark:");
+        try config.writer().writeAll(dark_path);
+    }
+
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const path = try td.dir.realpath("config", &path_buf);
+    var light_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const light_path = try td.dir.realpath("light", &light_buf);
+
+    var cfg = try Config.default(alloc);
+    defer cfg.deinit();
+    try cfg.loadFile(alloc, path);
+    try cfg.loadRecursiveFiles(alloc);
+    try cfg.finalize();
+
+    try testing.expectEqualStrings("not a key", cfg._diagnostics.items()[0].key);
+    try testing.expectEqualStrings("unknown field", cfg._diagnostics.items()[0].message);
+    try testing.expectEqualStrings(path, cfg._diagnostics.items()[0].location.file.path);
+    try testing.expectEqual(1, cfg._diagnostics.items()[0].location.file.line);
+
+    try testing.expectEqualStrings("also not a key", cfg._diagnostics.items()[1].key);
+    try testing.expectEqualStrings("unknown field", cfg._diagnostics.items()[1].message);
+    try testing.expectEqualStrings(light_path, cfg._diagnostics.items()[1].location.file.path);
+    try testing.expectEqual(1, cfg._diagnostics.items()[1].location.file.line);
+
+    var dark_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const dark_path = try td.dir.realpath("dark", &dark_buf);
+    var cfg_dark = (try cfg.changeConditionalState(.{ .theme = .dark })).?;
+    defer cfg_dark.deinit();
+
+    // try testing.expectEqualStrings("", try std.fmt.allocPrint(alloc, "{any}", .{cfg_dark._diagnostics.items()}));
+    try testing.expectEqualStrings("not a key", cfg_dark._diagnostics.items()[0].key);
+    try testing.expectEqualStrings("unknown field", cfg_dark._diagnostics.items()[0].message);
+    try testing.expectEqualStrings(path, cfg_dark._diagnostics.items()[0].location.file.path);
+    try testing.expectEqual(1, cfg_dark._diagnostics.items()[0].location.file.line);
+
+    try testing.expectEqualStrings("also not a key", cfg_dark._diagnostics.items()[1].key);
+    try testing.expectEqualStrings("unknown field", cfg_dark._diagnostics.items()[1].message);
+    try testing.expectEqualStrings(light_path, cfg_dark._diagnostics.items()[1].location.file.path);
+    try testing.expectEqual(1, cfg_dark._diagnostics.items()[1].location.file.line);
+
+    try testing.expectEqualStrings("even more not key", cfg_dark._diagnostics.items()[2].key);
+    try testing.expectEqualStrings("unknown field", cfg_dark._diagnostics.items()[2].message);
+    try testing.expectEqualStrings(dark_path, cfg_dark._diagnostics.items()[2].location.file.path);
+    try testing.expectEqual(1, cfg_dark._diagnostics.items()[2].location.file.line);
+}
+
 test "theme priority is lower than config" {
     const testing = std.testing;
     const alloc = testing.allocator;
